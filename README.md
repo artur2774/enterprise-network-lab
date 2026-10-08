@@ -138,18 +138,6 @@ sudo apt install nginx -y
 systemctl is-active nginx
 ```
 
-## Evidências para adicionar ao repositório
-
-As capturas ainda devem ser organizadas em `docs/evidencias/`. Sugestões de nomes:
-
-- `01-interfaces-vlans.png`: atribuição das três VLANs no OPNsense.
-- `02-dhcp-reserva.png`: reserva DHCP e IP recebido pelo servidor.
-- `03-regras-lan.png`: ordem final das regras da LAN.
-- `04-http-permitido.png`: página Nginx ou resultado curl na VLAN10.
-- `05-ssh-permitido.png`: sessão SSH autenticada a partir da VLAN10.
-- `06-icmp-bloqueado-log.png`: Live View com a regra que bloqueou ICMP.
-- `07-http-visitantes-bloqueado.png`: IP VLAN30 e timeout HTTP no mesmo registro.
-
 ## Backups
 
 Backups XML foram exportados em marcos da configuração, incluindo o estado final das regras validadas. O backup completo deve ser guardado de forma privada: ele pode conter credenciais, chaves e informações do ambiente. Para o repositório público, usar documentação e capturas revisadas, ou uma configuração sanitizada.
@@ -176,7 +164,7 @@ Evoluções planejadas, ainda não implementadas:
 - Distinguir conexões iniciadas de respostas a conexões existentes.
 - Confirmar decisões do firewall por logs, além de testes de conectividade.
 
-- ## Evidências dos testes
+## Evidências dos testes
 
 ### Regras da VLAN10
 ![Regras da LAN](docs/evidencias/03-regras-lan.png)
