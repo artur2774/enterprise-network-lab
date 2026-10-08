@@ -175,3 +175,20 @@ Evoluções planejadas, ainda não implementadas:
 - Aplicar exceções de serviço antes de bloqueios de rede.
 - Distinguir conexões iniciadas de respostas a conexões existentes.
 - Confirmar decisões do firewall por logs, além de testes de conectividade.
+
+- ## Evidências dos testes
+
+### Regras da VLAN10
+![Regras da LAN](docs/evidencias/03-regras-lan.png)
+
+### HTTP permitido para funcionários
+![Página Nginx](docs/evidencias/04-http-permitido.png)
+
+### SSH permitido para funcionários
+![Sessão SSH](docs/evidencias/05-ssh-permitido.png)
+
+### ICMP bloqueado pelo firewall
+![Log do bloqueio ICMP](docs/evidencias/06-icmp-bloqueado-log.png)
+
+### HTTP bloqueado para visitantes
+![Timeout na VLAN30](docs/evidencias/07-http-visitantes-bloqueado.png)
