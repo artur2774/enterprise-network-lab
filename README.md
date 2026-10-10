@@ -1,9 +1,9 @@
 # Enterprise Network Lab
 
-Laboratório de redes com segmentação por VLANs, DHCP, DNS, acesso à internet e controle de tráfego entre redes, implementado em Hyper-V com OPNsense.
+Laboratório de redes com segmentação por VLANs, DHCP, DNS, acesso à internet e controle de tráfego entre redes e VPN WireGuard, implementado em Hyper-V com OPNsense.
 
 **Autor:** Artur de Novazzi Maia  
-**Status:** primeira etapa implementada e validada — segmentação e controle de acesso IPv4.
+**Status:** segmentação e controle de acesso IPv4 validados; VPN WireGuard validada em teste interno pela rede doméstica. Acesso pela internet ainda pendente.
 
 ## Objetivo
 
@@ -138,9 +138,74 @@ sudo apt install nginx -y
 systemctl is-active nginx
 ```
 
+## VPN WireGuard — teste interno validado
+
+A VPN foi configurada no OPNsense e no cliente Windows para acessar o servidor do laboratório. O cliente está na rede doméstica, do lado WAN do OPNsense, e alcança a VLAN20 pelo túnel. Este cenário simula um cliente fora das VLANs do laboratório; **não comprova acesso remoto pela internet**.
+
+### Configuração do túnel
+
+| Parâmetro | Valor |
+|---|---|
+| Instância / interface | VPN_LAB / wg0 |
+| Peer | PC_ARTUR |
+| Transporte | UDP 51820 |
+| Endpoint usado pelo Windows | 192.168.0.32:51820 — WAN doméstica do OPNsense |
+| Endereço do OPNsense no túnel | 10.10.40.1/24 |
+| Endereço do cliente no túnel | 10.10.40.2/32 |
+| AllowedIPs no cliente Windows | 10.10.20.10/32 |
+| AllowedIPs do peer no OPNsense | 10.10.40.2/32 |
+| PersistentKeepalive no cliente | 25 segundos |
+
+O peer foi associado à instância VPN_LAB. A interface wg0 foi atribuída e habilitada com os tipos de configuração IPv4 e IPv6 em `None`: o endereço do túnel é definido na instância WireGuard.
+
+O cliente utiliza **split tunnel**: apenas o destino `10.10.20.10/32` é encaminhado pela VPN. As chaves privadas permanecem nos respectivos dispositivos e não são publicadas.
+
+### Regras de acesso
+
+Na WAN, a regra `WAN_PERMITIR_WIREGUARD_LAB` permite UDP da `WAN net` para `WAN address`, usando o alias de porta `PORTA_WIREGUARD` (51820). A origem está limitada à rede doméstica neste teste.
+
+Na interface VPN_LAB, foram criadas duas permissões IPv4 TCP com registro em log:
+
+| Regra | Origem | Destino | Porta |
+|---|---|---|---|
+| VPN_PERMITIR_HTTP_SRV | 10.10.40.2/32 | 10.10.20.10/32 | TCP 80 |
+| VPN_PERMITIR_SSH_SRV | 10.10.40.2/32 | 10.10.20.10/32 | TCP 22 |
+
+Os demais fluxos iniciados pela VPN ficam sujeitos ao bloqueio padrão. Não foi necessário adicionar NAT entre o túnel e o servidor.
+
+### Testes realizados
+
+| Teste | Resultado observado |
+|---|---|
+| Handshake do peer PC_ARTUR | Handshake recente e contadores de envio e recebimento |
+| VPN ligada → HTTP no servidor | Página Nginx acessível e `HTTP/1.1 200 OK` |
+| VPN ligada → SSH no servidor | Autenticação e sessão estabelecidas |
+| Origem da sessão SSH | `SSH_CONNECTION` mostrou 10.10.40.2 como cliente e 10.10.20.10:22 como servidor |
+| VPN ligada → ping no servidor | Timeout, compatível com a ausência de permissão ICMP |
+| VPN desligada → HTTP no servidor | Timeout após aproximadamente 5 segundos |
+| VPN reativada → HTTP no servidor | Resposta `HTTP/1.1 200 OK` novamente |
+
+O timeout do ping foi observado no cliente; não foi registrada nesta etapa uma captura do log desse bloqueio na interface VPN_LAB.
+
+No PowerShell do Windows, o comando HTTP foi executado com a VPN desligada e repetido após reativá-la:
+
+```powershell
+curl.exe -I --connect-timeout 5 http://10.10.20.10
+ssh artur@10.10.20.10
+ping 10.10.20.10
+```
+
+Dentro da sessão SSH no Ubuntu, a origem foi conferida com:
+
+```bash
+echo "$SSH_CONNECTION"
+```
+
 ## Backups
 
 Backups XML foram exportados em marcos da configuração, incluindo o estado final das regras validadas. O backup completo deve ser guardado de forma privada: ele pode conter credenciais, chaves e informações do ambiente. Para o repositório público, usar documentação e capturas revisadas, ou uma configuração sanitizada.
+
+O estado da VPN validada também foi exportado em `opnsense-wireguard-validado.xml`, mantido de forma privada por conter configurações e chaves.
 
 ## Escopo e próximos passos
 
@@ -150,7 +215,7 @@ A VLAN10 ainda possui uma permissão geral para destinos fora das redes de servi
 
 Evoluções planejadas, ainda não implementadas:
 
-- VPN para acesso remoto ao laboratório.
+- Viabilizar e validar o acesso WireGuard pela internet, verificando a conectividade do provedor, o encaminhamento UDP no roteador e a regra WAN para o cenário externo.
 - Restringir administração a um cliente ou uma rede de gestão.
 - Ampliar a matriz de testes e registrar capturas de tráfego com Wireshark.
 - Validar resolução do nome interno do servidor.
@@ -163,6 +228,9 @@ Evoluções planejadas, ainda não implementadas:
 - Aplicar exceções de serviço antes de bloqueios de rede.
 - Distinguir conexões iniciadas de respostas a conexões existentes.
 - Confirmar decisões do firewall por logs, além de testes de conectividade.
+- Configurar peers WireGuard e relacionar AllowedIPs com as rotas do túnel.
+- Separar o estabelecimento do túnel (handshake) das permissões de acesso aos serviços.
+- Comparar acesso com a VPN desligada e ligada e verificar a origem de uma sessão SSH.
 
 ## Evidências dos testes
 
@@ -180,3 +248,21 @@ Evoluções planejadas, ainda não implementadas:
 
 ### HTTP bloqueado para visitantes
 ![Timeout na VLAN30](docs/evidencias/07-http-visitantes-bloqueado.png)
+
+### Handshake WireGuard
+
+O peer PC_ARTUR apresenta handshake recente e tráfego enviado e recebido.
+
+![Handshake do peer PC_ARTUR](docs/evidencias/08-wireguard-handshake.png)
+
+### HTTP sem VPN e com VPN
+
+O primeiro comando foi executado com a VPN desligada (timeout); o segundo, após reativá-la (200 OK).
+
+![Comparação HTTP sem VPN e com VPN](docs/evidencias/09-vpn-http-validado.png)
+
+### SSH pela VPN
+
+A variável SSH_CONNECTION mostra o endereço 10.10.40.2 como origem da sessão.
+
+![Sessão SSH com origem no túnel WireGuard](docs/evidencias/10-vpn-ssh-validado.png)
